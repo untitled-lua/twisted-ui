@@ -1,17 +1,21 @@
-local Library = {}
-Library.__index = Library
+local UILibrary = {}
+UILibrary.__index = UILibrary
 
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
-local Player = Players.LocalPlayer
 local CoreGui = game:GetService("CoreGui")
+local Player = Players.LocalPlayer
 
-function Library:Init()
-	local self = setmetatable({}, Library)
+local MIN_WIDTH, MIN_HEIGHT = 300, 200
 
-	local ScreenGui = Instance.new("ScreenGui", CoreGui)
+function UILibrary:Init()
+	local self = setmetatable({}, UILibrary)
+
+	local ScreenGui = Instance.new("ScreenGui")
+	ScreenGui.Name = "UILibrary"
+	ScreenGui.Parent = CoreGui
 	ScreenGui.ResetOnSpawn = false
 	self.ScreenGui = ScreenGui
 
@@ -28,121 +32,154 @@ function Library:Init()
 
 	local UICorner = Instance.new("UICorner", Frame)
 	UICorner.CornerRadius = UDim.new(0, 8)
+	self.UICorner = UICorner
+	local SettingsPanel = Instance.new("Frame", Frame)
+	SettingsPanel.Size = UDim2.new(0, 200, 1, 0)
+	SettingsPanel.Position = UDim2.new(0, -200, 0, 0)
+	SettingsPanel.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+	SettingsPanel.BorderSizePixel = 0
+	self.SettingsPanel = SettingsPanel
+	self:SetupDragging()
+ 
+ 	local SettingsButton = Instance.new("ImageButton", Frame)
+	SettingsButton.Size = UDim2.new(0, 40, 0, 40)
+	SettingsButton.Position = UDim2.new(0, 10, 0, 10)
+	SettingsButton.BackgroundTransparency = 1
+	SettingsButton.Image = "rbxassetid://79377058817692"
+	SettingsButton.Name = "SettingsButton"
 
-	self.SettingsPanel = Instance.new("Frame", Frame)
-	self.SettingsPanel.Size = UDim2.new(0, 200, 1, 0)
-	self.SettingsPanel.Position = UDim2.new(0, 0, 0, 0)
-	self.SettingsPanel.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
-	self.SettingsPanel.BorderSizePixel = 0
+	local visible = false
+	SettingsButton.MouseButton1Click:Connect(function()
+		TweenService:Create(SettingsPanel, TweenInfo.new(0.25), {
+			Position = UDim2.new(0, visible and -200 or 0, 0, 0)
+		}):Play()
+		visible = not visible
+	end)
+	local InfoLabel = Instance.new("TextLabel", Frame)
+	InfoLabel.AnchorPoint = Vector2.new(1, 1)
+	InfoLabel.Position = UDim2.new(1, -10, 1, -10)
+	InfoLabel.BackgroundTransparency = 1
+	InfoLabel.Size = UDim2.new(0, 300, 0, 80)
+	InfoLabel.TextXAlignment = Enum.TextXAlignment.Right
+	InfoLabel.TextYAlignment = Enum.TextYAlignment.Bottom
+	InfoLabel.Font = Enum.Font.RobotoMono
+	InfoLabel.TextSize = 14
+	InfoLabel.TextWrapped = true
+	InfoLabel.RichText = true
+	InfoLabel.Visible = false
+	self.InfoLabel = InfoLabel
+
+	UserInputService.InputBegan:Connect(function(input, gpe)
+		if gpe then return end
+		if input.KeyCode == Enum.KeyCode.Insert then
+			self:ToggleVisible()
+		end
+	end)
+
+	local UnloadButton = Instance.new("ImageButton", Frame)
+	UnloadButton.Size = UDim2.new(0, 40, 0, 40)
+	UnloadButton.Position = UDim2.new(1, -5, 0, 10)
+	UnloadButton.AnchorPoint = Vector2.new(1, 0)
+	UnloadButton.BackgroundTransparency = 1
+	UnloadButton.Image = "rbxassetid://10653365009"
+	UnloadButton.MouseButton1Click:Connect(function()
+		ScreenGui:Destroy()
+	end)
+
+	self:StartInfoLoop()
 
 	return self
 end
 
-function Library:CreateToggle(name, callback, default)
-	local ToggleLabel = Instance.new("TextLabel", self.SettingsPanel)
-	ToggleLabel.Size = UDim2.new(1, -20, 0, 30)
-	ToggleLabel.Position = UDim2.new(0, 10, 0, 10 + (#self.SettingsPanel:GetChildren() - 1) * 40)
-	ToggleLabel.BackgroundTransparency = 1
-	ToggleLabel.Text = name
-	ToggleLabel.TextColor3 = Color3.new(1, 1, 1)
-	ToggleLabel.Font = Enum.Font.RobotoMono
-	ToggleLabel.TextSize = 18
-	ToggleLabel.TextXAlignment = Enum.TextXAlignment.Left
-
-	local BorderFrame = Instance.new("Frame", ToggleLabel)
-	BorderFrame.Size = UDim2.new(0, 54, 0, 34)
-	BorderFrame.Position = UDim2.new(1, -62, 0, 0)
-	BorderFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
-	BorderFrame.BorderSizePixel = 0
-
-	local borderCorner = Instance.new("UICorner", BorderFrame)
-	borderCorner.CornerRadius = UDim.new(0, 6)
-
-	local ToggleButton = Instance.new("TextButton", BorderFrame)
-	ToggleButton.Size = UDim2.new(1, -4, 1, -4)
-	ToggleButton.Position = UDim2.new(0, 2, 0, 2)
-	ToggleButton.BackgroundColor3 = Color3.fromRGB(55, 55, 55)
-	ToggleButton.Text = default and "On" or "Off"
-	ToggleButton.BorderSizePixel = 0
-	ToggleButton.Font = Enum.Font.RobotoMono
-	ToggleButton.TextSize = 18
-	ToggleButton.TextColor3 = Color3.new(1, 1, 1)
-
-	local corner = Instance.new("UICorner", ToggleButton)
-	corner.CornerRadius = UDim.new(0, 6)
-
-	local state = default or false
-	ToggleButton.MouseButton1Click:Connect(function()
-		state = not state
-		ToggleButton.Text = state and "On" or "Off"
-		callback(state)
-	end)
+function UILibrary:ToggleVisible()
+	local Frame = self.Frame
+	local fadeTween
+	if not Frame.Visible then
+		Frame.Visible = true
+		Frame.BackgroundTransparency = 1
+		fadeTween = TweenService:Create(Frame, TweenInfo.new(0.3), {BackgroundTransparency = 0})
+		fadeTween:Play()
+		TweenService:Create(self.UICorner, TweenInfo.new(0.3), {CornerRadius = UDim.new(0, 8)}):Play()
+	else
+		fadeTween = TweenService:Create(Frame, TweenInfo.new(0.3), {BackgroundTransparency = 1})
+		fadeTween:Play()
+		fadeTween.Completed:Connect(function()
+			Frame.Visible = false
+		end)
+		TweenService:Create(self.UICorner, TweenInfo.new(0.3), {CornerRadius = UDim.new(0, 0)}):Play()
+	end
 end
 
-function Library:CreateSlider(name, min, max, callback)
-	local labelY = 10 + (#self.SettingsPanel:GetChildren() - 1) * 40
+function UILibrary:SetupDragging()
+	local Frame = self.Frame
+	local dragging, resizing, dragStart, startPos, resizeStartPos, resizeStartSize
 
-	local Label = Instance.new("TextLabel", self.SettingsPanel)
-	Label.Size = UDim2.new(1, -20, 0, 30)
-	Label.Position = UDim2.new(0, 10, 0, labelY)
-	Label.BackgroundTransparency = 1
-	Label.Text = name
-	Label.TextColor3 = Color3.new(1, 1, 1)
-	Label.Font = Enum.Font.RobotoMono
-	Label.TextSize = 18
-	Label.TextXAlignment = Enum.TextXAlignment.Left
-
-	local Outline = Instance.new("Frame", self.SettingsPanel)
-	Outline.Size = UDim2.new(1, -20, 0, 10)
-	Outline.Position = UDim2.new(0, 10, 0, labelY + 30)
-	Outline.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
-	Outline.BorderSizePixel = 0
-	local OutlineCorner = Instance.new("UICorner", Outline)
-	OutlineCorner.CornerRadius = UDim.new(0, 6)
-
-	local Bar = Instance.new("Frame", Outline)
-	Bar.Size = UDim2.new(1, -2, 1, -2)
-	Bar.Position = UDim2.new(0, 1, 0, 1)
-	Bar.BackgroundColor3 = Color3.fromRGB(55, 55, 55)
-	Bar.BorderSizePixel = 0
-	local BarCorner = Instance.new("UICorner", Bar)
-	BarCorner.CornerRadius = UDim.new(0, 4)
-
-	local Fill = Instance.new("Frame", Bar)
-	Fill.Size = UDim2.new(0, 0, 1, 0)
-	Fill.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-	Fill.BorderSizePixel = 0
-	local FillCorner = Instance.new("UICorner", Fill)
-	FillCorner.CornerRadius = UDim.new(0, 6)
-
-	local dragging = false
-	local function setValueFromX(x)
-		local width = Bar.AbsoluteSize.X
-		local relX = math.clamp(x - Bar.AbsolutePosition.X, 0, width)
-		local ratio = relX / width
-		local value = math.floor(min + (max - min) * ratio)
-		callback(value)
-		Fill.Size = UDim2.new(ratio, 0, 1, 0)
-	end
-
-	Bar.InputBegan:Connect(function(input)
+	Frame.InputBegan:Connect(function(input)
 		if input.UserInputType == Enum.UserInputType.MouseButton1 then
-			dragging = true
-			setValueFromX(input.Position.X)
+			local pos = input.Position
+			local fPos = Frame.AbsolutePosition
+			local fSize = Frame.AbsoluteSize
+			if pos.X >= fPos.X + fSize.X - 20 and pos.Y >= fPos.Y + fSize.Y - 20 then
+				resizing = true
+				resizeStartPos = pos
+				resizeStartSize = Frame.Size
+			else
+				dragging = true
+				dragStart = pos
+				startPos = Frame.Position
+			end
 		end
 	end)
 
-	Bar.InputEnded:Connect(function(input)
+	Frame.InputEnded:Connect(function(input)
 		if input.UserInputType == Enum.UserInputType.MouseButton1 then
 			dragging = false
+			resizing = false
 		end
 	end)
 
 	UserInputService.InputChanged:Connect(function(input)
-		if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
-			setValueFromX(input.Position.X)
+		if input.UserInputType == Enum.UserInputType.MouseMovement then
+			if dragging then
+				local delta = input.Position - dragStart
+				Frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+			elseif resizing then
+				local delta = input.Position - resizeStartPos
+				Frame.Size = UDim2.new(0, math.max(MIN_WIDTH, resizeStartSize.X.Offset + delta.X), 0, math.max(MIN_HEIGHT, resizeStartSize.Y.Offset + delta.Y))
+			end
 		end
 	end)
 end
 
-return Library
+function UILibrary:StartInfoLoop()
+	local label = self.InfoLabel
+	local player = Player
+	local fps = 0
+	local frameCount = 0
+	local last = tick()
+
+	RunService.RenderStepped:Connect(function()
+		if not label.Visible then return end
+		frameCount += 1
+		local now = tick()
+		if now - last >= 1 then
+			fps = math.floor(frameCount / (now - last))
+			last = now
+			frameCount = 0
+			local ping = math.floor(player:GetNetworkPing() * 1000)
+			local sizeX = math.floor(self.Frame.AbsoluteSize.X)
+			local sizeY = math.floor(self.Frame.AbsoluteSize.Y)
+			local device = UserInputService.TouchEnabled and "Mobile" or UserInputService.GamepadEnabled and "Console" or "PC"
+			label.Text = string.format("<font color=\"rgb(0,255,0)\">fps: %d</font>\n<font color=\"rgb(255,255,0)\">ping: %d</font>\n<font color=\"rgb(255,255,255)\">ui: %dx%d\ndevice: %s</font>", fps, ping, sizeX, sizeY, device)
+		end
+	end)
+end
+
+function UILibrary:CreateToggle(name, callback, default)
+
+end
+
+function UILibrary:CreateSlider(name, min, max, callback)
+end
+
+return UILibrary
