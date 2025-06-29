@@ -1,0 +1,148 @@
+local Library = {}
+Library.__index = Library
+
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local Players = game:GetService("Players")
+local Player = Players.LocalPlayer
+local CoreGui = game:GetService("CoreGui")
+
+function Library:Init()
+	local self = setmetatable({}, Library)
+
+	local ScreenGui = Instance.new("ScreenGui", CoreGui)
+	ScreenGui.ResetOnSpawn = false
+	self.ScreenGui = ScreenGui
+
+	local Frame = Instance.new("Frame", ScreenGui)
+	Frame.Size = UDim2.new(0, 700, 0, 520)
+	Frame.Position = UDim2.new(0.5, -350, 0.5, -260)
+	Frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+	Frame.BorderSizePixel = 5
+	Frame.BorderColor3 = Color3.fromRGB(45, 45, 45)
+	Frame.Active = true
+	Frame.Draggable = false
+	Frame.ClipsDescendants = true
+	self.Frame = Frame
+
+	local UICorner = Instance.new("UICorner", Frame)
+	UICorner.CornerRadius = UDim.new(0, 8)
+
+	self.SettingsPanel = Instance.new("Frame", Frame)
+	self.SettingsPanel.Size = UDim2.new(0, 200, 1, 0)
+	self.SettingsPanel.Position = UDim2.new(0, 0, 0, 0)
+	self.SettingsPanel.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+	self.SettingsPanel.BorderSizePixel = 0
+
+	return self
+end
+
+function Library:CreateToggle(name, callback, default)
+	local ToggleLabel = Instance.new("TextLabel", self.SettingsPanel)
+	ToggleLabel.Size = UDim2.new(1, -20, 0, 30)
+	ToggleLabel.Position = UDim2.new(0, 10, 0, 10 + (#self.SettingsPanel:GetChildren() - 1) * 40)
+	ToggleLabel.BackgroundTransparency = 1
+	ToggleLabel.Text = name
+	ToggleLabel.TextColor3 = Color3.new(1, 1, 1)
+	ToggleLabel.Font = Enum.Font.RobotoMono
+	ToggleLabel.TextSize = 18
+	ToggleLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+	local BorderFrame = Instance.new("Frame", ToggleLabel)
+	BorderFrame.Size = UDim2.new(0, 54, 0, 34)
+	BorderFrame.Position = UDim2.new(1, -62, 0, 0)
+	BorderFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+	BorderFrame.BorderSizePixel = 0
+
+	local borderCorner = Instance.new("UICorner", BorderFrame)
+	borderCorner.CornerRadius = UDim.new(0, 6)
+
+	local ToggleButton = Instance.new("TextButton", BorderFrame)
+	ToggleButton.Size = UDim2.new(1, -4, 1, -4)
+	ToggleButton.Position = UDim2.new(0, 2, 0, 2)
+	ToggleButton.BackgroundColor3 = Color3.fromRGB(55, 55, 55)
+	ToggleButton.Text = default and "On" or "Off"
+	ToggleButton.BorderSizePixel = 0
+	ToggleButton.Font = Enum.Font.RobotoMono
+	ToggleButton.TextSize = 18
+	ToggleButton.TextColor3 = Color3.new(1, 1, 1)
+
+	local corner = Instance.new("UICorner", ToggleButton)
+	corner.CornerRadius = UDim.new(0, 6)
+
+	local state = default or false
+	ToggleButton.MouseButton1Click:Connect(function()
+		state = not state
+		ToggleButton.Text = state and "On" or "Off"
+		callback(state)
+	end)
+end
+
+function Library:CreateSlider(name, min, max, callback)
+	local labelY = 10 + (#self.SettingsPanel:GetChildren() - 1) * 40
+
+	local Label = Instance.new("TextLabel", self.SettingsPanel)
+	Label.Size = UDim2.new(1, -20, 0, 30)
+	Label.Position = UDim2.new(0, 10, 0, labelY)
+	Label.BackgroundTransparency = 1
+	Label.Text = name
+	Label.TextColor3 = Color3.new(1, 1, 1)
+	Label.Font = Enum.Font.RobotoMono
+	Label.TextSize = 18
+	Label.TextXAlignment = Enum.TextXAlignment.Left
+
+	local Outline = Instance.new("Frame", self.SettingsPanel)
+	Outline.Size = UDim2.new(1, -20, 0, 10)
+	Outline.Position = UDim2.new(0, 10, 0, labelY + 30)
+	Outline.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+	Outline.BorderSizePixel = 0
+	local OutlineCorner = Instance.new("UICorner", Outline)
+	OutlineCorner.CornerRadius = UDim.new(0, 6)
+
+	local Bar = Instance.new("Frame", Outline)
+	Bar.Size = UDim2.new(1, -2, 1, -2)
+	Bar.Position = UDim2.new(0, 1, 0, 1)
+	Bar.BackgroundColor3 = Color3.fromRGB(55, 55, 55)
+	Bar.BorderSizePixel = 0
+	local BarCorner = Instance.new("UICorner", Bar)
+	BarCorner.CornerRadius = UDim.new(0, 4)
+
+	local Fill = Instance.new("Frame", Bar)
+	Fill.Size = UDim2.new(0, 0, 1, 0)
+	Fill.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+	Fill.BorderSizePixel = 0
+	local FillCorner = Instance.new("UICorner", Fill)
+	FillCorner.CornerRadius = UDim.new(0, 6)
+
+	local dragging = false
+	local function setValueFromX(x)
+		local width = Bar.AbsoluteSize.X
+		local relX = math.clamp(x - Bar.AbsolutePosition.X, 0, width)
+		local ratio = relX / width
+		local value = math.floor(min + (max - min) * ratio)
+		callback(value)
+		Fill.Size = UDim2.new(ratio, 0, 1, 0)
+	end
+
+	Bar.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 then
+			dragging = true
+			setValueFromX(input.Position.X)
+		end
+	end)
+
+	Bar.InputEnded:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 then
+			dragging = false
+		end
+	end)
+
+	UserInputService.InputChanged:Connect(function(input)
+		if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+			setValueFromX(input.Position.X)
+		end
+	end)
+end
+
+return Library
